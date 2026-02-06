@@ -29,7 +29,7 @@ class DriversResearcher:
         cls,
         metaculus_question: MetaculusQuestion,
         num_drivers_to_return: int = 8,
-        broad_scan_model: str = "openrouter/anthropic/claude-sonnet-4-5-20250929",
+        broad_scan_model: str = "openrouter/anthropic/claude-sonnet-4.5",
         base_rate_context: "BaseRateReport | None" = None,
     ) -> list[ScoredDriver]:
         question_details = metaculus_question.give_question_details_as_markdown()
@@ -74,7 +74,7 @@ class DriversResearcher:
             search_query
         )
         llm = GeneralLlm(
-            model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+            model="openrouter/anthropic/claude-sonnet-4.5",
             temperature=0,
         )
         full_prompt = (
@@ -88,7 +88,7 @@ class DriversResearcher:
     async def _broad_scan(
         cls,
         question_details: str,
-        model: str = "openrouter/anthropic/claude-sonnet-4-5-20250929",
+        model: str = "openrouter/anthropic/claude-sonnet-4.5",
     ) -> list[CandidateDriver]:
         prompt = clean_indents(
             f"""
@@ -146,7 +146,7 @@ class DriversResearcher:
             candidates, in order of relevance.
             """
         )
-        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4-6", temperature=0)
+        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4.6", temperature=0)
         indices = await llm.invoke_and_return_verified_type(prompt, list[int])
         return [candidates[i] for i in indices if 0 <= i < len(candidates)]
 
@@ -177,7 +177,7 @@ class DriversResearcher:
             candidate: CandidateDriver,
         ) -> tuple[CandidateDriver, DominanceScenario, list[Precondition]] | None:
             llm = GeneralLlm(
-                model="openrouter/anthropic/claude-opus-4-6",
+                model="openrouter/anthropic/claude-opus-4.6",
                 temperature=0.3,
             )
 
@@ -503,7 +503,7 @@ class DriversResearcher:
             "strength", "uncertainty". One object per driver.
             """
         )
-        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4-6", temperature=0)
+        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4.6", temperature=0)
         assessments = await llm.invoke_and_return_verified_type(
             prompt, list[DriverAssessment]
         )
@@ -543,7 +543,7 @@ class DriversResearcher:
             Return only a JSON list of integers.
             """
         )
-        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4-6", temperature=0)
+        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4.6", temperature=0)
         indices = await llm.invoke_and_return_verified_type(prompt, list[int])
         return [drivers[i] for i in indices if 0 <= i < len(drivers)]
 

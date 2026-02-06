@@ -20,16 +20,16 @@ class DriversBot(SpringTemplateBot2026):
     def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm]:
         return {
             "default": GeneralLlm(
-                model="openrouter/anthropic/claude-opus-4-6",
+                model="openrouter/anthropic/claude-opus-4.6",
                 temperature=1,
             ),
             "summarizer": GeneralLlm(
-                model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+                model="openrouter/anthropic/claude-sonnet-4.5",
                 temperature=0.3,
             ),
             "researcher": "asknews/news-summaries",
             "parser": GeneralLlm(
-                model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+                model="openrouter/anthropic/claude-sonnet-4.5",
                 temperature=0.3,
             ),
         }
@@ -75,9 +75,15 @@ class DriversBot(SpringTemplateBot2026):
             )
 
             # 4. ASKNEWS RESEARCH
-            asknews_research = await AskNewsSearcher().get_formatted_news_async(
-                question.question_text
-            )
+            asknews_research = ""
+            try:
+                asknews_research = (
+                    await AskNewsSearcher().get_formatted_news_async(
+                        question.question_text
+                    )
+                )
+            except Exception:
+                logger.warning("AskNews research failed, continuing without")
 
             logger.info(
                 f"Found Research for URL {question.page_url}:\n{asknews_research}"
@@ -116,7 +122,7 @@ Focus on:
                     f"{driver.name} {question.question_text}"
                 )
                 llm = GeneralLlm(
-                    model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+                    model="openrouter/anthropic/claude-sonnet-4.5",
                     temperature=0.3,
                 )
                 result = await llm.invoke(
