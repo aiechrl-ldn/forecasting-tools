@@ -131,6 +131,20 @@ async def configure_and_run_bot(
     max_questions_for_run: int = ScheduleConfig.default_max_main_site_questions_per_run,
     batch_size: int = ScheduleConfig.default_question_batch_size,
 ) -> list[ForecastReport | BaseException]:
+    base_url = os.getenv("METACULUS_API_BASE_URL")
+    if base_url is None:
+        raise ValueError(
+            "METACULUS_API_BASE_URL environment variable is not set. "
+            "Please set it in the environment variables."
+            "This makes sure no workflows have forgotten to set it as an input variable."
+        )
+    if base_url == "":
+        logger.warning(
+            "METACULUS_API_BASE_URL environment variable is set to an empty string"
+        )
+    logger.info(f"Using Metaculus API base URL: {base_url}")
+
+    
     bot_config = get_default_bot_dict()[mode]
     questions = await get_questions_for_config(
         bot_config, max_questions=max_questions_for_run
@@ -467,6 +481,7 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
     default_research_comparison_forecast_llm = GeneralLlm(
         model="openrouter/deepseek/deepseek-r1",
         temperature=default_temperature,
+        timeout=60 * 6,
     )
     grok_4_search_llm = GeneralLlm(
         model="xai/grok-4-latest",
@@ -485,6 +500,7 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
     )  # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
     deepseek_r1_exa_online_llm = GeneralLlm(
         model="openrouter/deepseek/deepseek-r1:online",
+        timeout=60 * 6,
     )
     o4_mini_deep_research_llm = GeneralLlm(
         model="openai/o4-mini-deep-research",
@@ -527,6 +543,7 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
             GeneralLlm(
                 model="openrouter/deepseek/deepseek-r1",
                 temperature=default_temperature,
+                timeout=60 * 6,
             ),
         ),
     }
