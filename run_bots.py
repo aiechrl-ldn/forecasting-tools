@@ -144,7 +144,6 @@ async def configure_and_run_bot(
         )
     logger.info(f"Using Metaculus API base URL: {base_url}")
 
-    
     bot_config = get_default_bot_dict()[mode]
     questions = await get_questions_for_config(
         bot_config, max_questions=max_questions_for_run
