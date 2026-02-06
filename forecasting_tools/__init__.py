@@ -30,6 +30,12 @@ from forecasting_tools.agents_and_tools.question_generators.topic_generator impo
 from forecasting_tools.agents_and_tools.research.computer_use import (
     ComputerUse as ComputerUse,
 )
+from forecasting_tools.agents_and_tools.research.drivers_researcher import (
+    DriversResearcher as DriversResearcher,
+)
+from forecasting_tools.agents_and_tools.research.drivers_researcher import (
+    ScoredDriver as ScoredDriver,
+)
 from forecasting_tools.agents_and_tools.research.key_factors_researcher import (
     KeyFactorsResearcher as KeyFactorsResearcher,
 )

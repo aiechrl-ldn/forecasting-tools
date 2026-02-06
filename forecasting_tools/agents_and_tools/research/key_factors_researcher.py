@@ -34,6 +34,7 @@ class KeyFactorsResearcher:
         metaculus_question: MetaculusQuestion,
         num_key_factors_to_return: int = 5,
         num_questions_to_research_with: int = 26,
+        driver_context: str | None = None,
     ) -> list[ScoredKeyFactor]:
         num_background_questions = num_questions_to_research_with // 2
         num_base_rate_questions = (
