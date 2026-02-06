@@ -25,9 +25,7 @@ class DriversBot(SpringTemplateBot2026):
                 model="claude-sonnet-4-5-20250929", temperature=0.3
             ),
             "researcher": "asknews/news-summaries",
-            "parser": GeneralLlm(
-                model="claude-sonnet-4-5-20250929", temperature=0.3
-            ),
+            "parser": GeneralLlm(model="claude-sonnet-4-5-20250929", temperature=0.3),
         }
 
     async def run_research(self, question: MetaculusQuestion) -> str:
@@ -79,10 +77,7 @@ class DriversBot(SpringTemplateBot2026):
                 f"Found Research for URL {question.page_url}:\n{asknews_research}"
             )
             return (
-                base_rate_section
-                + drivers_section
-                + driver_research
-                + asknews_research
+                base_rate_section + drivers_section + driver_research + asknews_research
             )
 
     async def _driver_guided_search(

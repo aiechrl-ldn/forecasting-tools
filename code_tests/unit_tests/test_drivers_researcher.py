@@ -111,9 +111,7 @@ class TestPydanticModels:
 
 
 class TestDriversResearcher:
-    @patch(
-        "forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm"
-    )
+    @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
     @patch(
         "forecasting_tools.agents_and_tools.research.drivers_researcher.SmartSearcher"
     )
@@ -158,9 +156,7 @@ class TestDriversResearcher:
         assert len(result) <= 8
         assert all(isinstance(d, ScoredDriver) for d in result)
 
-    @patch(
-        "forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm"
-    )
+    @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
     @patch(
         "forecasting_tools.agents_and_tools.research.drivers_researcher.SmartSearcher"
     )
@@ -188,7 +184,9 @@ class TestDriversResearcher:
         )
         mock_searcher_cls.return_value = mock_searcher_instance
 
-        result = await DriversResearcher.research_drivers(question, num_drivers_to_return=4)
+        result = await DriversResearcher.research_drivers(
+            question, num_drivers_to_return=4
+        )
         assert len(result) == 0
 
 
@@ -276,9 +274,7 @@ class TestPreconditionModels:
 
 
 class TestPreconditionValidation:
-    @patch(
-        "forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm"
-    )
+    @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
     @patch(
         "forecasting_tools.agents_and_tools.research.drivers_researcher.SmartSearcher"
     )
@@ -322,9 +318,7 @@ class TestPreconditionValidation:
         assert len(analyses) == 2
         assert all(isinstance(a, PreconditionAnalysis) for a in analyses)
 
-    @patch(
-        "forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm"
-    )
+    @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
     @patch(
         "forecasting_tools.agents_and_tools.research.drivers_researcher.SmartSearcher"
     )

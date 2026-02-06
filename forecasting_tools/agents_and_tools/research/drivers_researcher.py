@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
-
-from typing import TYPE_CHECKING
 
 from forecasting_tools.agents_and_tools.research.smart_searcher import SmartSearcher
 from forecasting_tools.ai_models.general_llm import GeneralLlm
@@ -44,9 +43,7 @@ class DriversResearcher:
         )
         logger.info(f"Phase 1: Filtered to {len(filtered)} candidates")
 
-        logger.info(
-            f"Starting precondition validation for {len(filtered)} candidates"
-        )
+        logger.info(f"Starting precondition validation for {len(filtered)} candidates")
         validated_candidates, precondition_analyses = (
             await cls._precondition_validation(
                 question_details, filtered, base_rate_context
@@ -227,8 +224,10 @@ class DriversResearcher:
             return (candidate, dominance, preconditions)
 
         coroutines = [analyze_driver(c) for c in candidates]
-        results, _ = async_batching.run_coroutines_while_removing_and_logging_exceptions(
-            coroutines
+        results, _ = (
+            async_batching.run_coroutines_while_removing_and_logging_exceptions(
+                coroutines
+            )
         )
         driver_analyses = [r for r in results if r is not None]
 
@@ -237,9 +236,7 @@ class DriversResearcher:
 
         # Phase 3: Search for precondition evidence (rate-limited)
         all_search_tasks = []
-        for idx, (candidate, dominance, preconditions) in enumerate(
-            driver_analyses
-        ):
+        for idx, (candidate, dominance, preconditions) in enumerate(driver_analyses):
             for precondition in preconditions:
                 all_search_tasks.append((idx, candidate, dominance, precondition))
 
@@ -304,9 +301,7 @@ class DriversResearcher:
         driver_preconditions: dict[int, list[Precondition]] = {}
         driver_dominance: dict[int, DominanceScenario] = {}
         driver_candidate: dict[int, CandidateDriver] = {}
-        for idx, (candidate, dominance, preconditions) in enumerate(
-            driver_analyses
-        ):
+        for idx, (candidate, dominance, preconditions) in enumerate(driver_analyses):
             driver_preconditions[idx] = preconditions
             driver_dominance[idx] = dominance
             driver_candidate[idx] = candidate
@@ -331,11 +326,16 @@ class DriversResearcher:
             dominance = driver_dominance[idx]
 
             # Calculate alignment score
-            favorable_statuses = {PreconditionStatus.EMERGING, PreconditionStatus.STABLE}
+            favorable_statuses = {
+                PreconditionStatus.EMERGING,
+                PreconditionStatus.STABLE,
+            }
             favorable_count = sum(
                 1 for p in preconditions if p.status in favorable_statuses
             )
-            alignment_score = favorable_count / len(preconditions) if preconditions else 0
+            alignment_score = (
+                favorable_count / len(preconditions) if preconditions else 0
+            )
 
             # Determine emergence strength
             if alignment_score >= 0.75:
@@ -348,7 +348,7 @@ class DriversResearcher:
                 emergence_strength = "very_weak"
 
             analysis = PreconditionAnalysis(
-                driver_name=name,
+                driver_name=candidate.name,
                 dominance_scenario=dominance,
                 preconditions=preconditions,
                 precondition_alignment_score=alignment_score,
@@ -361,9 +361,9 @@ class DriversResearcher:
             plausibility = plausibility_scores.get(
                 dominance.timescale_plausibility, 0.5
             )
-            evidence_quality = sum(
-                1 for p in preconditions if p.citations
-            ) / max(len(preconditions), 1)
+            evidence_quality = sum(1 for p in preconditions if p.citations) / max(
+                len(preconditions), 1
+            )
 
             combined_score = (
                 0.30 * candidate.initial_relevance

@@ -1,9 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from code_tests.unit_tests.forecasting_test_manager import ForecastingTestManager
-from forecasting_tools.agents_and_tools.research.drivers_researcher import (
-    ScoredDriver,
-)
 from forecasting_tools.forecast_bots.experiments.drivers_bot import DriversBot
 
 ASKNEWS_PATCH = (
@@ -28,21 +25,15 @@ def _mock_asknews() -> MagicMock:
 
 class TestDriversBot:
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher"
-    )
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher"
-    )
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher")
     async def test_run_research_includes_steep_section(
         self,
         mock_researcher: AsyncMock,
         mock_base_rate: AsyncMock,
         mock_asknews: MagicMock,
     ) -> None:
-        from code_tests.unit_tests.test_drivers_researcher import (
-            _make_scored_driver,
-        )
+        from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
         mock_researcher.research_drivers = AsyncMock(
             return_value=[_make_scored_driver("AI Progress")]
@@ -60,12 +51,8 @@ class TestDriversBot:
         assert "AI Progress" in result
 
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher"
-    )
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher"
-    )
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher")
     async def test_run_research_fallback_on_failure(
         self,
         mock_researcher: AsyncMock,
@@ -87,21 +74,15 @@ class TestDriversBot:
 
 class TestDriversBotBaseRate:
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher"
-    )
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher"
-    )
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher")
     async def test_base_rate_included_when_successful(
         self,
         mock_base_rate_cls: MagicMock,
         mock_researcher: AsyncMock,
         mock_asknews: MagicMock,
     ) -> None:
-        from code_tests.unit_tests.test_drivers_researcher import (
-            _make_scored_driver,
-        )
+        from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
         # Mock base rate report
         mock_report = MagicMock()
@@ -124,12 +105,8 @@ class TestDriversBotBaseRate:
         assert "10% per year" in result
 
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher"
-    )
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher"
-    )
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.BaseRateResearcher")
     async def test_base_rate_context_passed_to_drivers(
         self,
         mock_base_rate_cls: MagicMock,
@@ -157,15 +134,11 @@ class TestDriversBotBaseRate:
 
 
 class TestDriverGuidedSearch:
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher"
-    )
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher")
     async def test_driver_guided_search_returns_results(
         self, mock_searcher_cls: MagicMock
     ) -> None:
-        from code_tests.unit_tests.test_drivers_researcher import (
-            _make_scored_driver,
-        )
+        from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
         mock_searcher_instance = AsyncMock()
         mock_searcher_instance.invoke = AsyncMock(
@@ -191,15 +164,11 @@ class TestDriverGuidedSearch:
 
         assert result == ""
 
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher"
-    )
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher")
     async def test_driver_guided_search_limits_to_five(
         self, mock_searcher_cls: MagicMock
     ) -> None:
-        from code_tests.unit_tests.test_drivers_researcher import (
-            _make_scored_driver,
-        )
+        from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
         mock_searcher_instance = AsyncMock()
         mock_searcher_instance.invoke = AsyncMock(return_value="Research")
@@ -214,15 +183,11 @@ class TestDriverGuidedSearch:
         # Should only call invoke 5 times (limit)
         assert mock_searcher_instance.invoke.call_count == 5
 
-    @patch(
-        "forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher"
-    )
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher")
     async def test_driver_guided_search_handles_failures(
         self, mock_searcher_cls: MagicMock
     ) -> None:
-        from code_tests.unit_tests.test_drivers_researcher import (
-            _make_scored_driver,
-        )
+        from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
         mock_searcher_instance = AsyncMock()
         mock_searcher_instance.invoke = AsyncMock(
