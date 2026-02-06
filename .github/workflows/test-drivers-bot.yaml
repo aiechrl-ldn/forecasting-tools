@@ -1,0 +1,56 @@
+name: Test DriversBot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-drivers-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Run DriversBot on test question
+        run: |
+          poetry run python -c "
+          import asyncio
+          import logging
+          logging.basicConfig(level=logging.INFO)
+          from forecasting_tools.forecast_bots.experiments.drivers_bot import DriversBot
+          from forecasting_tools.helpers.metaculus_api import MetaculusApi
+
+          bot = DriversBot(
+              research_reports_per_question=1,
+              predictions_per_research_report=1,
+              publish_reports_to_metaculus=True,
+              skip_previously_forecasted_questions=False,
+          )
+          question = MetaculusApi.get_question_by_url(
+              'https://www.metaculus.com/questions/578/human-extinction-by-2100/'
+          )
+          report = asyncio.run(bot.forecast_question(question))
+          print(f'Prediction: {report.prediction}')
+          print(f'Explanation: {report.explanation[:500]}')
+          "
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
+          ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PYTHONPATH: .

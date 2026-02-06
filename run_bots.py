@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.forecast_report import ForecastReport
 from forecasting_tools.data_models.questions import MetaculusQuestion
+from forecasting_tools.forecast_bots.experiments.drivers_bot import DriversBot
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.forecast_bots.official_bots.gpt_4_1_optimized_bot import (
     GPT41OptimizedBot,
@@ -559,6 +560,18 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
     mode_base_bot_mapping = {
         # "METAC_GROK_4_1_HIGH": {} # TODO: Add these bots to github workflow. Its not yet released via API as of Dec 21st, 2025
         # "METAC_GROK_4_1": {}
+        ############################ Custom Experimental Bots ############################
+        "METAC_DRIVERS_BOT": {
+            "estimated_cost_per_question": roughly_opus_4_5_cost,
+            "bot": DriversBot(
+                research_reports_per_question=1,
+                predictions_per_research_report=5,
+                use_research_summary_to_forecast=default_for_using_summary,
+                publish_reports_to_metaculus=default_for_publish_to_metaculus,
+                skip_previously_forecasted_questions=default_for_skipping_questions,
+            ),
+            "tournaments": TournConfig.aib_only,
+        },
         ############################ Bots started in December 2025 ############################
         "METAC_CLAUDE_OPUS_4_5_HIGH_32K": {
             "estimated_cost_per_question": roughly_opus_4_5_cost * 1.3,

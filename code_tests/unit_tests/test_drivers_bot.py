@@ -134,17 +134,24 @@ class TestDriversBotBaseRate:
 
 
 class TestDriverGuidedSearch:
-    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.GeneralLlm")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.AskNewsSearcher")
     async def test_driver_guided_search_returns_results(
-        self, mock_searcher_cls: MagicMock
+        self, mock_asknews_cls: MagicMock, mock_llm_cls: MagicMock
     ) -> None:
         from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
-        mock_searcher_instance = AsyncMock()
-        mock_searcher_instance.invoke = AsyncMock(
+        mock_asknews_instance = AsyncMock()
+        mock_asknews_instance.get_formatted_news_async = AsyncMock(
+            return_value="Fake news context"
+        )
+        mock_asknews_cls.return_value = mock_asknews_instance
+
+        mock_llm_instance = AsyncMock()
+        mock_llm_instance.invoke = AsyncMock(
             return_value="Deep dive research on driver"
         )
-        mock_searcher_cls.return_value = mock_searcher_instance
+        mock_llm_cls.return_value = mock_llm_instance
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()
@@ -164,15 +171,22 @@ class TestDriverGuidedSearch:
 
         assert result == ""
 
-    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.GeneralLlm")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.AskNewsSearcher")
     async def test_driver_guided_search_limits_to_five(
-        self, mock_searcher_cls: MagicMock
+        self, mock_asknews_cls: MagicMock, mock_llm_cls: MagicMock
     ) -> None:
         from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
-        mock_searcher_instance = AsyncMock()
-        mock_searcher_instance.invoke = AsyncMock(return_value="Research")
-        mock_searcher_cls.return_value = mock_searcher_instance
+        mock_asknews_instance = AsyncMock()
+        mock_asknews_instance.get_formatted_news_async = AsyncMock(
+            return_value="Fake news"
+        )
+        mock_asknews_cls.return_value = mock_asknews_instance
+
+        mock_llm_instance = AsyncMock()
+        mock_llm_instance.invoke = AsyncMock(return_value="Research")
+        mock_llm_cls.return_value = mock_llm_instance
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()
@@ -181,19 +195,19 @@ class TestDriverGuidedSearch:
         await bot._driver_guided_search(question, drivers)
 
         # Should only call invoke 5 times (limit)
-        assert mock_searcher_instance.invoke.call_count == 5
+        assert mock_asknews_instance.get_formatted_news_async.call_count == 5
 
-    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.SmartSearcher")
+    @patch("forecasting_tools.forecast_bots.experiments.drivers_bot.AskNewsSearcher")
     async def test_driver_guided_search_handles_failures(
-        self, mock_searcher_cls: MagicMock
+        self, mock_asknews_cls: MagicMock
     ) -> None:
         from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
 
-        mock_searcher_instance = AsyncMock()
-        mock_searcher_instance.invoke = AsyncMock(
+        mock_asknews_instance = AsyncMock()
+        mock_asknews_instance.get_formatted_news_async = AsyncMock(
             side_effect=RuntimeError("Search failed")
         )
-        mock_searcher_cls.return_value = mock_searcher_instance
+        mock_asknews_cls.return_value = mock_asknews_instance
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()

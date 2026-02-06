@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from forecasting_tools.agents_and_tools.research.smart_searcher import SmartSearcher
 from forecasting_tools.ai_models.general_llm import GeneralLlm
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
 from forecasting_tools.helpers.metaculus_api import MetaculusQuestion
 from forecasting_tools.util import async_batching
 from forecasting_tools.util.misc import clean_indents
@@ -29,7 +29,7 @@ class DriversResearcher:
         cls,
         metaculus_question: MetaculusQuestion,
         num_drivers_to_return: int = 8,
-        broad_scan_model: str = "claude-sonnet-4-5-20250929",
+        broad_scan_model: str = "openrouter/anthropic/claude-sonnet-4-5-20250929",
         base_rate_context: "BaseRateReport | None" = None,
     ) -> list[ScoredDriver]:
         question_details = metaculus_question.give_question_details_as_markdown()
@@ -64,8 +64,31 @@ class DriversResearcher:
         return scored
 
     @classmethod
+    async def _search_and_extract(
+        cls,
+        search_query: str,
+        extraction_prompt: str,
+        return_type: type,
+    ) -> object:
+        news_context = await AskNewsSearcher().get_formatted_news_async(
+            search_query
+        )
+        llm = GeneralLlm(
+            model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+            temperature=0,
+        )
+        full_prompt = (
+            f"{extraction_prompt}\n\nNews context:\n{news_context}"
+        )
+        return await llm.invoke_and_return_verified_type(
+            full_prompt, return_type
+        )
+
+    @classmethod
     async def _broad_scan(
-        cls, question_details: str, model: str = "claude-sonnet-4-5-20250929"
+        cls,
+        question_details: str,
+        model: str = "openrouter/anthropic/claude-sonnet-4-5-20250929",
     ) -> list[CandidateDriver]:
         prompt = clean_indents(
             f"""
@@ -123,7 +146,7 @@ class DriversResearcher:
             candidates, in order of relevance.
             """
         )
-        llm = GeneralLlm(model="claude-opus-4-6", temperature=0)
+        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4-6", temperature=0)
         indices = await llm.invoke_and_return_verified_type(prompt, list[int])
         return [candidates[i] for i in indices if 0 <= i < len(candidates)]
 
@@ -153,7 +176,10 @@ class DriversResearcher:
         async def analyze_driver(
             candidate: CandidateDriver,
         ) -> tuple[CandidateDriver, DominanceScenario, list[Precondition]] | None:
-            llm = GeneralLlm(model="claude-opus-4-6", temperature=0.3)
+            llm = GeneralLlm(
+                model="openrouter/anthropic/claude-opus-4-6",
+                temperature=0.3,
+            )
 
             # Phase 1: Dominance scenario
             dominance_prompt = clean_indents(
@@ -244,14 +270,10 @@ class DriversResearcher:
             task: tuple[int, CandidateDriver, DominanceScenario, Precondition],
         ) -> tuple[int, CandidateDriver, DominanceScenario, Precondition]:
             idx, candidate, dominance, precondition = task
-            searcher = SmartSearcher(
-                num_searches_to_run=1,
-                num_sites_per_search=5,
-            )
-            search_prompt = clean_indents(
+            extraction_prompt = clean_indents(
                 f"""
-                Search for evidence about the following precondition for a
-                forecasting analysis.
+                Analyze the following news context for evidence about a
+                precondition for a forecasting analysis.
 
                 Precondition: {precondition.description}
                 Context: Driver "{candidate.name}" for question about
@@ -270,8 +292,10 @@ class DriversResearcher:
                 """
             )
             try:
-                result = await searcher.invoke_and_return_verified_type(
-                    search_prompt, dict
+                result = await cls._search_and_extract(
+                    search_query=f"{candidate.name} {precondition.description}",
+                    extraction_prompt=extraction_prompt,
+                    return_type=dict,
                 )
                 precondition.status = PreconditionStatus(result.get("status", "absent"))
                 precondition.evidence_summary = result.get("evidence_summary", "")
@@ -389,14 +413,10 @@ class DriversResearcher:
         candidates: list[CandidateDriver],
     ) -> list[ScoredDriver]:
         async def validate_one(candidate: CandidateDriver) -> ScoredDriver | None:
-            searcher = SmartSearcher(
-                num_searches_to_run=2,
-                num_sites_per_search=10,
-            )
-            search_prompt = clean_indents(
+            extraction_prompt = clean_indents(
                 f"""
-                Find recent evidence about the following driver and its
-                potential impact on a forecasting question.
+                Analyze the following news context for evidence about a
+                driver and its potential impact on a forecasting question.
 
                 Driver: {candidate.name}
                 Category: {candidate.category.value}
@@ -416,8 +436,10 @@ class DriversResearcher:
                 """
             )
             try:
-                signals = await searcher.invoke_and_return_verified_type(
-                    search_prompt, list[SignalEvidence]
+                signals = await cls._search_and_extract(
+                    search_query=f"{candidate.name} {candidate.mechanism}",
+                    extraction_prompt=extraction_prompt,
+                    return_type=list[SignalEvidence],
                 )
             except Exception:
                 logger.warning(f"Search failed for driver: {candidate.name}")
@@ -481,7 +503,7 @@ class DriversResearcher:
             "strength", "uncertainty". One object per driver.
             """
         )
-        llm = GeneralLlm(model="claude-opus-4-6", temperature=0)
+        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4-6", temperature=0)
         assessments = await llm.invoke_and_return_verified_type(
             prompt, list[DriverAssessment]
         )
@@ -521,7 +543,7 @@ class DriversResearcher:
             Return only a JSON list of integers.
             """
         )
-        llm = GeneralLlm(model="claude-opus-4-6", temperature=0)
+        llm = GeneralLlm(model="openrouter/anthropic/claude-opus-4-6", temperature=0)
         indices = await llm.invoke_and_return_verified_type(prompt, list[int])
         return [drivers[i] for i in indices if 0 <= i < len(drivers)]
 

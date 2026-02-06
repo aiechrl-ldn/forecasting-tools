@@ -4,7 +4,6 @@ from forecasting_tools.agents_and_tools.research.drivers_researcher import (
     DriversResearcher,
     ScoredDriver,
 )
-from forecasting_tools.agents_and_tools.research.smart_searcher import SmartSearcher
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.official_bots.template_bot_2026_spring import (
@@ -20,12 +19,19 @@ class DriversBot(SpringTemplateBot2026):
     @classmethod
     def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm]:
         return {
-            "default": GeneralLlm(model="claude-opus-4-6", temperature=1),
+            "default": GeneralLlm(
+                model="openrouter/anthropic/claude-opus-4-6",
+                temperature=1,
+            ),
             "summarizer": GeneralLlm(
-                model="claude-sonnet-4-5-20250929", temperature=0.3
+                model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+                temperature=0.3,
             ),
             "researcher": "asknews/news-summaries",
-            "parser": GeneralLlm(model="claude-sonnet-4-5-20250929", temperature=0.3),
+            "parser": GeneralLlm(
+                model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+                temperature=0.3,
+            ),
         }
 
     async def run_research(self, question: MetaculusQuestion) -> str:
@@ -90,12 +96,9 @@ class DriversBot(SpringTemplateBot2026):
             return ""
 
         async def _search_one_driver(driver: ScoredDriver) -> str | None:
-            searcher = SmartSearcher(
-                num_searches_to_run=1,
-                num_sites_per_search=8,
-            )
             prompt = f"""
-Research the following driver in depth for a forecasting question.
+Analyze the following news context about a driver for a forecasting question.
+Summarize the key findings relevant to this driver's trajectory and impact.
 
 Question: {question.question_text}
 
@@ -103,13 +106,22 @@ Driver: {driver.name}
 Mechanism: {driver.mechanism}
 Direction of pressure: {driver.direction_of_pressure}
 
-Find:
+Focus on:
 - Recent news/data on this driver's current trajectory
 - Quantitative indicators if available
 - Expert opinions on this driver's likely impact
 """
             try:
-                result = await searcher.invoke(prompt)
+                news = await AskNewsSearcher().get_formatted_news_async(
+                    f"{driver.name} {question.question_text}"
+                )
+                llm = GeneralLlm(
+                    model="openrouter/anthropic/claude-sonnet-4-5-20250929",
+                    temperature=0.3,
+                )
+                result = await llm.invoke(
+                    f"{prompt}\n\nNews context:\n{news}"
+                )
                 return f"### {driver.name}\n{result}"
             except Exception:
                 logger.warning(f"Driver search failed for {driver.name}")
