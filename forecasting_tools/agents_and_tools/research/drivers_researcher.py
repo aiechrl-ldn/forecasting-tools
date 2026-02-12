@@ -255,9 +255,11 @@ class DriversResearcher:
             return candidates, []
 
         # Phase 3: Search for precondition evidence (rate-limited)
+        # Limit to 2 preconditions per driver to stay within AskNews rate limits
+        # (free tier: 1 req/10s, each search = 2 API calls)
         all_search_tasks = []
         for idx, (candidate, dominance, preconditions) in enumerate(driver_analyses):
-            for precondition in preconditions:
+            for precondition in preconditions[:2]:
                 all_search_tasks.append((idx, candidate, dominance, precondition))
 
         async def search_precondition(
@@ -302,11 +304,12 @@ class DriversResearcher:
 
             return (idx, candidate, dominance, precondition)
 
-        # Rate limit: conservative for AskNews (each search makes 2 API calls)
+        # Rate limit: AskNews free tier = 1 request per 10 seconds,
+        # and each search makes 2 API calls (hot + historical) with internal sleep
         rate_limited_coroutines = async_batching.wrap_coroutines_with_rate_limit(
             [search_precondition(t) for t in all_search_tasks],
-            calls_per_period=5,
-            time_period_in_seconds=60,
+            calls_per_period=1,
+            time_period_in_seconds=25,
         )
         search_results, _ = (
             async_batching.run_coroutines_while_removing_and_logging_exceptions(
@@ -453,10 +456,14 @@ class DriversResearcher:
                 uncertainty="",
             )
 
-        coroutines = [validate_one(c) for c in candidates]
+        rate_limited = async_batching.wrap_coroutines_with_rate_limit(
+            [validate_one(c) for c in candidates],
+            calls_per_period=1,
+            time_period_in_seconds=25,
+        )
         results, _ = (
             async_batching.run_coroutines_while_removing_and_logging_exceptions(
-                coroutines
+                rate_limited
             )
         )
         scored = [r for r in results if r is not None]
