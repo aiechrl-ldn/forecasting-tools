@@ -294,18 +294,18 @@ class DriversResearcher:
                 precondition.status = PreconditionStatus(result.get("status", "absent"))
                 precondition.evidence_summary = result.get("evidence_summary", "")
                 precondition.citations = result.get("citations", [])
-            except Exception:
+            except Exception as e:
                 logger.warning(
-                    f"Precondition search failed for: {precondition.description[:50]}"
+                    f"Precondition search failed for: {precondition.description[:50]}: {e}"
                 )
                 precondition.status = PreconditionStatus.ABSENT
 
             return (idx, candidate, dominance, precondition)
 
-        # Rate limit: 5 requests per second (300 per minute)
+        # Rate limit: conservative for AskNews (each search makes 2 API calls)
         rate_limited_coroutines = async_batching.wrap_coroutines_with_rate_limit(
             [search_precondition(t) for t in all_search_tasks],
-            calls_per_period=300,
+            calls_per_period=5,
             time_period_in_seconds=60,
         )
         search_results, _ = (
@@ -435,8 +435,8 @@ class DriversResearcher:
                     extraction_prompt=extraction_prompt,
                     return_type=list[SignalEvidence],
                 )
-            except Exception:
-                logger.warning(f"Search failed for driver: {candidate.name}")
+            except Exception as e:
+                logger.warning(f"Search failed for driver: {candidate.name}: {e}")
                 return None
 
             if not signals:
@@ -579,6 +579,15 @@ class DriverStrength(str, Enum):
     WEAK = "weak"
     MODERATE = "moderate"
     STRONG = "strong"
+
+    @classmethod
+    def _missing_(cls, value: object) -> DriverStrength | None:
+        if isinstance(value, str):
+            lowered = value.lower()
+            for member in cls:
+                if member.value == lowered:
+                    return member
+        return None
 
 
 class PreconditionStatus(str, Enum):
