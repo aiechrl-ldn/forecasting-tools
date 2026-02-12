@@ -14,7 +14,8 @@ from forecasting_tools.agents_and_tools.deprecated.configured_llms import (
 from forecasting_tools.agents_and_tools.deprecated.research_coordinator import (
     ResearchCoordinator,
 )
-from forecasting_tools.agents_and_tools.research.smart_searcher import SmartSearcher
+from forecasting_tools.ai_models.general_llm import GeneralLlm
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
 from forecasting_tools.helpers.metaculus_api import MetaculusQuestion
 from forecasting_tools.util import async_batching
 from forecasting_tools.util.misc import (
@@ -33,7 +34,7 @@ class KeyFactorsResearcher:
         cls,
         metaculus_question: MetaculusQuestion,
         num_key_factors_to_return: int = 5,
-        num_questions_to_research_with: int = 26,
+        num_questions_to_research_with: int = 10,
         driver_context: str | None = None,
     ) -> list[ScoredKeyFactor]:
         num_background_questions = num_questions_to_research_with // 2
@@ -102,9 +103,14 @@ class KeyFactorsResearcher:
         key_factor_tasks = [
             cls.__find_key_factors_for_question(question) for question in questions
         ]
+        rate_limited_tasks = async_batching.wrap_coroutines_with_rate_limit(
+            key_factor_tasks,
+            calls_per_period=1,
+            time_period_in_seconds=25,
+        )
         key_factors, _ = (
             async_batching.run_coroutines_while_removing_and_logging_exceptions(
-                key_factor_tasks
+                rate_limited_tasks
             )
         )
         flattened_key_factors = [
@@ -119,11 +125,13 @@ class KeyFactorsResearcher:
     async def __find_key_factors_for_question(
         cls, question_text: str
     ) -> list[KeyFactor]:
+        news_context = await AskNewsSearcher().get_formatted_news_async(question_text)
+
         prompt = clean_indents(
             f"""
             You are a top tier expert and assistant to a superforecaster.
 
-            Analyze the following question and provide key factors that could influence the outcome of the larger question.
+            Analyze the following news context and provide key factors that could influence the outcome of the larger question.
             Include base rates, pros (factors supporting a positive outcome), and cons (factors supporting a negative outcome).
             Each factor should be a single sentence and include a citation.
 
@@ -138,11 +146,14 @@ class KeyFactorsResearcher:
 
             Question: {question_text}
 
+            News Context:
+            {news_context}
+
             Provide your answer as a list of JSON objects, each representing a KeyFigure with the following format:
             {{
                 "text": "The key factor statement",
                 "factor_type": "base_rate" or "pro" or "con",
-                "citation": "citation number in brackets(e.g. [1])",
+                "citation": "citation in markdown format [number](url)",
                 "source_publish_date": "YYYY-MM-DD" (or null if unknown)
             }}
 
@@ -150,12 +161,10 @@ class KeyFactorsResearcher:
             """
         )
 
-        smart_searcher = SmartSearcher(
-            use_brackets_around_citations=False,
-            num_searches_to_run=2,
-            num_sites_per_search=10,
+        llm = GeneralLlm(
+            model="openrouter/anthropic/claude-sonnet-4.5", temperature=0
         )
-        key_figures = await smart_searcher.invoke_and_return_verified_type(
+        key_figures = await llm.invoke_and_return_verified_type(
             prompt, list[KeyFactor]
         )
 

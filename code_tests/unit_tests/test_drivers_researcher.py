@@ -11,6 +11,7 @@ from forecasting_tools.agents_and_tools.research.drivers_researcher import (
     DriverStrength,
     Precondition,
     PreconditionAnalysis,
+    PreconditionAssessment,
     PreconditionStatus,
     ScoredDriver,
     SignalEvidence,
@@ -34,22 +35,12 @@ def _make_candidate(
 def _make_scored_driver(
     name: str = "Test Driver",
     category: SteepCategory = SteepCategory.TECHNOLOGICAL,
-    num_signals: int = 1,
 ) -> ScoredDriver:
-    signals = [
-        SignalEvidence(
-            summary=f"Evidence {i}",
-            citation=f"[{i}](https://example.com/{i})",
-            recency="2024",
-        )
-        for i in range(num_signals)
-    ]
     return ScoredDriver(
         name=name,
         category=category,
         mechanism="Test mechanism",
         directionality=Directionality.ACCELERATING,
-        signals=signals,
         direction_of_pressure="pushes toward Yes",
         strength=DriverStrength.STRONG,
         uncertainty="Low uncertainty",
@@ -109,12 +100,20 @@ class TestPydanticModels:
         )
         assert assessment.strength == DriverStrength.WEAK
 
+    def test_precondition_assessment_model(self) -> None:
+        assessment = PreconditionAssessment(
+            index=0,
+            dominance_plausibility="high",
+            precondition_summary="Preconditions mostly met",
+            viability_score=0.8,
+        )
+        assert assessment.viability_score == 0.8
+
 
 class TestDriversResearcher:
-    @patch.object(DriversResearcher, "_search_and_extract")
     @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
     async def test_research_drivers_success(
-        self, mock_llm_cls: AsyncMock, mock_search_extract: AsyncMock
+        self, mock_llm_cls: AsyncMock
     ) -> None:
         from code_tests.unit_tests.forecasting_test_manager import (
             ForecastingTestManager,
@@ -122,12 +121,17 @@ class TestDriversResearcher:
 
         question = ForecastingTestManager.get_fake_binary_question()
 
-        candidates = [_make_candidate(f"Driver {i}") for i in range(10)]
-        indices_filter = list(range(8))
-        signals = [
-            SignalEvidence(summary="ev", citation="[1](https://x.com)", recency="2024")
+        candidates = [_make_candidate(f"Driver {i}") for i in range(16)]
+        precondition_assessments = [
+            PreconditionAssessment(
+                index=i,
+                dominance_plausibility="high",
+                precondition_summary="Met",
+                viability_score=0.8,
+            )
+            for i in range(10)
         ]
-        assessments = [
+        driver_assessments = [
             DriverAssessment(
                 index=i,
                 direction_of_pressure="pushes Yes",
@@ -136,39 +140,20 @@ class TestDriversResearcher:
             )
             for i in range(8)
         ]
-        indices_final = list(range(8))
 
         mock_llm_instance = AsyncMock()
         mock_llm_instance.invoke_and_return_verified_type = AsyncMock(
-            side_effect=[candidates, indices_filter, assessments, indices_final]
+            side_effect=[candidates, precondition_assessments, driver_assessments]
         )
         mock_llm_cls.return_value = mock_llm_instance
-
-        # _search_and_extract is called for precondition search (returns dict)
-        # and validate_with_search (returns list[SignalEvidence])
-        precondition_result = {
-            "status": "emerging",
-            "evidence_summary": "Found evidence",
-            "citations": ["[1](https://x.com)"],
-        }
-
-        async def search_extract_side_effect(
-            search_query, extraction_prompt, return_type
-        ):
-            if return_type == dict:
-                return precondition_result
-            return signals
-
-        mock_search_extract.side_effect = search_extract_side_effect
 
         result = await DriversResearcher.research_drivers(question)
         assert len(result) <= 8
         assert all(isinstance(d, ScoredDriver) for d in result)
 
-    @patch.object(DriversResearcher, "_search_and_extract")
     @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
-    async def test_no_signals_drops_candidates(
-        self, mock_llm_cls: AsyncMock, mock_search_extract: AsyncMock
+    async def test_low_viability_filters_candidates(
+        self, mock_llm_cls: AsyncMock
     ) -> None:
         from code_tests.unit_tests.forecasting_test_manager import (
             ForecastingTestManager,
@@ -177,33 +162,47 @@ class TestDriversResearcher:
         question = ForecastingTestManager.get_fake_binary_question()
 
         candidates = [_make_candidate(f"Driver {i}") for i in range(4)]
-        indices_filter = list(range(4))
+        # All candidates get low viability scores
+        precondition_assessments = [
+            PreconditionAssessment(
+                index=i,
+                dominance_plausibility="very_low",
+                precondition_summary="Not met",
+                viability_score=0.1,
+            )
+            for i in range(4)
+        ]
 
         mock_llm_instance = AsyncMock()
         mock_llm_instance.invoke_and_return_verified_type = AsyncMock(
-            side_effect=[candidates, indices_filter]
+            side_effect=[candidates, precondition_assessments]
         )
         mock_llm_cls.return_value = mock_llm_instance
-
-        precondition_result = {
-            "status": "emerging",
-            "evidence_summary": "Found evidence",
-            "citations": [],
-        }
-
-        async def search_extract_side_effect(
-            search_query, extraction_prompt, return_type
-        ):
-            if return_type == dict:
-                return precondition_result
-            return []  # No signals found
-
-        mock_search_extract.side_effect = search_extract_side_effect
 
         result = await DriversResearcher.research_drivers(
             question, num_drivers_to_return=4
         )
+        # All filtered out by low viability, _score_and_select gets empty list
         assert len(result) == 0
+
+    @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
+    async def test_empty_candidates_returns_empty(
+        self, mock_llm_cls: AsyncMock
+    ) -> None:
+        from code_tests.unit_tests.forecasting_test_manager import (
+            ForecastingTestManager,
+        )
+
+        question = ForecastingTestManager.get_fake_binary_question()
+
+        mock_llm_instance = AsyncMock()
+        mock_llm_instance.invoke_and_return_verified_type = AsyncMock(
+            return_value=[]
+        )
+        mock_llm_cls.return_value = mock_llm_instance
+
+        result = await DriversResearcher.research_drivers(question)
+        assert result == []
 
 
 class TestPreconditionModels:
@@ -289,106 +288,51 @@ class TestPreconditionModels:
             )
 
 
-class TestPreconditionValidation:
+class TestLlmPreconditionValidation:
     @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
-    @patch(
-        "forecasting_tools.agents_and_tools.research.drivers_researcher.AskNewsSearcher"
-    )
-    async def test_precondition_validation_returns_analyses(
-        self, mock_asknews_cls: AsyncMock, mock_llm_cls: AsyncMock
+    async def test_llm_precondition_validation_filters_by_viability(
+        self, mock_llm_cls: AsyncMock
     ) -> None:
-        candidates = [_make_candidate(f"Driver {i}") for i in range(2)]
+        candidates = [_make_candidate(f"Driver {i}") for i in range(3)]
 
-        mock_dominance = DominanceScenario(
-            scenario_description="Test scenario",
-            timescale_plausibility="high",
-            system_effects=["Effect 1"],
-        )
-        mock_preconditions = [
-            Precondition(description="Pre 1", why_necessary="Why 1"),
-            Precondition(description="Pre 2", why_necessary="Why 2"),
+        assessments = [
+            PreconditionAssessment(
+                index=0,
+                dominance_plausibility="high",
+                precondition_summary="Met",
+                viability_score=0.9,
+            ),
+            PreconditionAssessment(
+                index=1,
+                dominance_plausibility="low",
+                precondition_summary="Not met",
+                viability_score=0.1,
+            ),
+            PreconditionAssessment(
+                index=2,
+                dominance_plausibility="medium",
+                precondition_summary="Partially",
+                viability_score=0.5,
+            ),
         ]
-        mock_search_result = {
-            "status": "emerging",
-            "evidence_summary": "Found evidence",
-            "citations": ["[1](https://x.com)"],
-        }
 
         mock_llm_instance = AsyncMock()
         mock_llm_instance.invoke_and_return_verified_type = AsyncMock(
-            side_effect=[mock_dominance, mock_preconditions] * 2
-            + [mock_search_result] * 4
+            return_value=assessments
         )
         mock_llm_cls.return_value = mock_llm_instance
 
-        mock_asknews_instance = AsyncMock()
-        mock_asknews_instance.get_formatted_news_async = AsyncMock(
-            return_value="Fake news context"
-        )
-        mock_asknews_cls.return_value = mock_asknews_instance
-
-        validated, analyses = await DriversResearcher._precondition_validation(
+        validated = await DriversResearcher._llm_precondition_validation(
             "Test question", candidates
         )
 
-        assert len(validated) > 0
-        assert len(analyses) == 2
-        assert all(isinstance(a, PreconditionAnalysis) for a in analyses)
+        # Index 1 should be filtered (viability 0.1 < 0.3)
+        assert len(validated) == 2
+        assert validated[0].name == "Driver 0"
+        assert validated[1].name == "Driver 2"
 
-    @patch("forecasting_tools.agents_and_tools.research.drivers_researcher.GeneralLlm")
-    @patch(
-        "forecasting_tools.agents_and_tools.research.drivers_researcher.AskNewsSearcher"
-    )
-    async def test_precondition_validation_filters_low_scores(
-        self, mock_asknews_cls: AsyncMock, mock_llm_cls: AsyncMock
-    ) -> None:
-        # Create a candidate with low relevance
-        low_relevance = CandidateDriver(
-            name="Low Driver",
-            category=SteepCategory.SOCIAL,
-            mechanism="Test",
-            directionality=Directionality.STABLE,
-            initial_relevance=0.1,
-        )
-        candidates = [low_relevance]
-
-        mock_dominance = DominanceScenario(
-            scenario_description="Test scenario",
-            timescale_plausibility="very_low",
-            system_effects=[],
-        )
-        mock_preconditions = [
-            Precondition(description="Pre 1", why_necessary="Why 1"),
-        ]
-        mock_search_result = {
-            "status": "contrary",
-            "evidence_summary": "Moving away",
-            "citations": [],
-        }
-
-        mock_llm_instance = AsyncMock()
-        mock_llm_instance.invoke_and_return_verified_type = AsyncMock(
-            side_effect=[mock_dominance, mock_preconditions, mock_search_result]
-        )
-        mock_llm_cls.return_value = mock_llm_instance
-
-        mock_asknews_instance = AsyncMock()
-        mock_asknews_instance.get_formatted_news_async = AsyncMock(
-            return_value="Fake news context"
-        )
-        mock_asknews_cls.return_value = mock_asknews_instance
-
-        validated, analyses = await DriversResearcher._precondition_validation(
-            "Test question", candidates
-        )
-
-        # Should be filtered out due to low combined score
-        assert len(validated) == 0
-        assert len(analyses) == 1
-
-    async def test_precondition_validation_empty_input(self) -> None:
-        validated, analyses = await DriversResearcher._precondition_validation(
+    async def test_llm_precondition_validation_empty_input(self) -> None:
+        validated = await DriversResearcher._llm_precondition_validation(
             "Test question", []
         )
         assert validated == []
-        assert analyses == []
