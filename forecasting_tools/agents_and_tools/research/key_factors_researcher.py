@@ -21,7 +21,7 @@ from forecasting_tools.util import async_batching
 from forecasting_tools.util.misc import (
     clean_indents,
     extract_url_from_markdown_link,
-    is_markdown_citation,
+    is_markdown_link,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,12 +55,21 @@ class KeyFactorsResearcher:
             scored_key_factors, key=lambda x: x.score, reverse=True
         )
         top_key_factors = sorted_key_factors[: num_key_factors_to_return * 2]
-        prioritized_key_factors = await cls.__prioritize_key_factors(
-            metaculus_question, top_key_factors, num_key_factors_to_return
-        )
-        deduplicated_key_factors = await cls.__deduplicate_key_factors(
-            prioritized_key_factors, metaculus_question
-        )
+        if len(top_key_factors) < num_key_factors_to_return:
+            logger.warning(
+                f"Only found {len(top_key_factors)} key factors, "
+                f"fewer than requested {num_key_factors_to_return}"
+            )
+            deduplicated_key_factors = await cls.__deduplicate_key_factors(
+                top_key_factors, metaculus_question
+            )
+        else:
+            prioritized_key_factors = await cls.__prioritize_key_factors(
+                metaculus_question, top_key_factors, num_key_factors_to_return
+            )
+            deduplicated_key_factors = await cls.__deduplicate_key_factors(
+                prioritized_key_factors, metaculus_question
+            )
         logger.info(
             f"Found {len(deduplicated_key_factors)} final key factors (prioritized, deduplicated and filtering for top scores)"
         )
@@ -307,9 +316,9 @@ class KeyFactor(BaseModel):
 
     @field_validator("citation")
     def validate_citation_format(cls, v: str) -> str:
-        if not is_markdown_citation(v):
+        if not is_markdown_link(v):
             raise ValueError(
-                "Citation must be in the markdown friendly format [number](url)"
+                "Citation must be in markdown link format [text](url)"
             )
         return v
 

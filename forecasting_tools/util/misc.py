@@ -107,6 +107,11 @@ def is_markdown_citation(v: str) -> bool:
     return bool(re.match(pattern, v))
 
 
+def is_markdown_link(v: str) -> bool:
+    pattern = r"\[.+?\]\(https?://\S+\)"
+    return bool(re.match(pattern, v))
+
+
 def extract_url_from_markdown_link(markdown_link: str) -> str:
     match = re.search(r"\((\S+)\)", markdown_link)
     if match:
