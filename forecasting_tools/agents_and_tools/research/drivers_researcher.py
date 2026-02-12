@@ -4,7 +4,7 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
@@ -555,12 +555,30 @@ class SteepCategory(str, Enum):
     ENVIRONMENTAL = "environmental"
     POLITICAL = "political"
 
+    @classmethod
+    def _missing_(cls, value: object) -> SteepCategory | None:
+        if isinstance(value, str):
+            lowered = value.lower()
+            for member in cls:
+                if member.value == lowered:
+                    return member
+        return None
+
 
 class Directionality(str, Enum):
     ACCELERATING = "accelerating"
     DECELERATING = "decelerating"
     STABLE = "stable"
     UNCLEAR = "unclear"
+
+    @classmethod
+    def _missing_(cls, value: object) -> Directionality | None:
+        if isinstance(value, str):
+            lowered = value.lower()
+            for member in cls:
+                if member.value == lowered:
+                    return member
+        return None
 
 
 class DriverStrength(str, Enum):
@@ -599,11 +617,22 @@ class PreconditionAnalysis(BaseModel):
 
 
 class CandidateDriver(BaseModel):
+    model_config = {"populate_by_name": True}
+
     name: str
     category: SteepCategory
     mechanism: str
-    directionality: Directionality
-    initial_relevance: float = Field(ge=0.0, le=1.0)
+    directionality: Directionality = Field(validation_alias="trend")
+    initial_relevance: float = Field(
+        ge=0.0, le=1.0, validation_alias="relevance"
+    )
+
+    @field_validator("directionality", mode="before")
+    @classmethod
+    def _coerce_directionality(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.lower()
+        return v
 
 
 class SignalEvidence(BaseModel):

@@ -50,8 +50,8 @@ class DriversBot(SpringTemplateBot2026):
                     f"## Historical Base Rate\n{report.markdown_report}\n\n"
                 )
                 base_rate_context = report
-            except Exception:
-                logger.warning("Base rate research failed, continuing without")
+            except Exception as e:
+                logger.warning(f"Base rate research failed: {e}")
 
             # 2. DRIVERS (with base rate context)
             drivers_section = ""
@@ -82,8 +82,8 @@ class DriversBot(SpringTemplateBot2026):
                         question.question_text
                     )
                 )
-            except Exception:
-                logger.warning("AskNews research failed, continuing without")
+            except Exception as e:
+                logger.warning(f"AskNews research failed: {e}", exc_info=True)
 
             logger.info(
                 f"Found Research for URL {question.page_url}:\n{asknews_research}"

@@ -5,18 +5,17 @@ from forecasting_tools.ai_models.deprecated_model_classes.gpt4ovision import (
 )
 
 default_llms = {
-    "basic": "gpt-4o",
-    "advanced": "gpt-4o",
+    "basic": "openrouter/anthropic/claude-sonnet-4.5",
+    "advanced": "openrouter/anthropic/claude-sonnet-4.5",
 }
 
 
 class BasicLlm(Gpt4o):
-    # NOTE: If need be, you can force an API key here through OpenAI Client class variable
-    pass
+    MODEL_NAME = "openrouter/anthropic/claude-sonnet-4.5"
 
 
 class AdvancedLlm(Gpt4o):
-    pass
+    MODEL_NAME = "openrouter/anthropic/claude-sonnet-4.5"
 
 
 class VisionLlm(Gpt4oVision):
