@@ -26,6 +26,18 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
 
+      - name: Debug secrets availability
+        run: |
+          echo "ASKNEWS_CLIENT_ID is set: ${{ secrets.ASKNEWS_CLIENT_ID != '' }}"
+          echo "ASKNEWS_SECRET is set: ${{ secrets.ASKNEWS_SECRET != '' }}"
+          echo "METACULUS_TOKEN is set: ${{ secrets.METACULUS_TOKEN != '' }}"
+          echo "OPENROUTER_API_KEY is set: ${{ secrets.OPENROUTER_API_KEY != '' }}"
+          echo "ASKNEWS_CLIENT_ID env length: ${#ASKNEWS_CLIENT_ID}"
+          echo "ASKNEWS_SECRET env length: ${#ASKNEWS_SECRET}"
+        env:
+          ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
+          ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+
       - name: Run DriversBot on test question
         run: |
           poetry run python -c "
