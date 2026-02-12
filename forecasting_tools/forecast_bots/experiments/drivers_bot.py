@@ -77,10 +77,8 @@ class DriversBot(SpringTemplateBot2026):
             # 4. ASKNEWS RESEARCH
             asknews_research = ""
             try:
-                asknews_research = (
-                    await AskNewsSearcher().get_formatted_news_async(
-                        question.question_text
-                    )
+                asknews_research = await AskNewsSearcher().get_formatted_news_async(
+                    question.question_text
                 )
             except Exception as e:
                 logger.warning(f"AskNews research failed: {e}", exc_info=True)
@@ -125,9 +123,7 @@ Focus on:
                     model="openrouter/anthropic/claude-sonnet-4.5",
                     temperature=0.3,
                 )
-                result = await llm.invoke(
-                    f"{prompt}\n\nNews context:\n{news}"
-                )
+                result = await llm.invoke(f"{prompt}\n\nNews context:\n{news}")
                 return f"### {driver.name}\n{result}"
             except Exception:
                 logger.warning(f"Driver search failed for {driver.name}")

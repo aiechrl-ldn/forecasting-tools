@@ -70,19 +70,13 @@ class DriversResearcher:
         extraction_prompt: str,
         return_type: type,
     ) -> object:
-        news_context = await AskNewsSearcher().get_formatted_news_async(
-            search_query
-        )
+        news_context = await AskNewsSearcher().get_formatted_news_async(search_query)
         llm = GeneralLlm(
             model="openrouter/anthropic/claude-sonnet-4.5",
             temperature=0,
         )
-        full_prompt = (
-            f"{extraction_prompt}\n\nNews context:\n{news_context}"
-        )
-        return await llm.invoke_and_return_verified_type(
-            full_prompt, return_type
-        )
+        full_prompt = f"{extraction_prompt}\n\nNews context:\n{news_context}"
+        return await llm.invoke_and_return_verified_type(full_prompt, return_type)
 
     @classmethod
     async def _broad_scan(
@@ -623,9 +617,7 @@ class CandidateDriver(BaseModel):
     category: SteepCategory
     mechanism: str
     directionality: Directionality = Field(validation_alias="trend")
-    initial_relevance: float = Field(
-        ge=0.0, le=1.0, validation_alias="relevance"
-    )
+    initial_relevance: float = Field(ge=0.0, le=1.0, validation_alias="relevance")
 
     @field_validator("directionality", mode="before")
     @classmethod
