@@ -6,6 +6,9 @@ from forecasting_tools.forecast_bots.experiments.drivers_bot import DriversBot
 ASKNEWS_PATCH = (
     "forecasting_tools.forecast_bots.experiments.drivers_bot.AskNewsSearcher"
 )
+BASE_RATES_PATCH = (
+    "forecasting_tools.forecast_bots.experiments.drivers_bot.LightweightBaseRateResearcher"
+)
 DRIVERS_PATCH = (
     "forecasting_tools.forecast_bots.experiments.drivers_bot.DriversResearcher"
 )
@@ -37,12 +40,14 @@ def _mock_key_factors() -> list[MagicMock]:
 
 class TestDriversBot:
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
+    @patch(BASE_RATES_PATCH)
     @patch(KEY_FACTORS_PATCH)
     @patch(DRIVERS_PATCH)
     async def test_run_research_includes_steep_section(
         self,
         mock_researcher: AsyncMock,
         mock_key_factors: AsyncMock,
+        mock_base_rates: AsyncMock,
         mock_asknews: MagicMock,
     ) -> None:
         from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
@@ -51,6 +56,7 @@ class TestDriversBot:
             return_value=[_make_scored_driver("AI Progress")]
         )
         mock_key_factors.find_and_sort_key_factors = AsyncMock(return_value=[])
+        mock_base_rates.research_base_rates = AsyncMock(return_value=[])
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()
@@ -61,12 +67,14 @@ class TestDriversBot:
         assert "AI Progress" in result
 
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
+    @patch(BASE_RATES_PATCH)
     @patch(KEY_FACTORS_PATCH)
     @patch(DRIVERS_PATCH)
     async def test_run_research_includes_key_factors(
         self,
         mock_researcher: AsyncMock,
         mock_key_factors_cls: AsyncMock,
+        mock_base_rates: AsyncMock,
         mock_asknews: MagicMock,
     ) -> None:
         from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
@@ -80,6 +88,7 @@ class TestDriversBot:
         mock_key_factors_cls.find_and_sort_key_factors = AsyncMock(
             return_value=[mock_factor]
         )
+        mock_base_rates.research_base_rates = AsyncMock(return_value=[])
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()
@@ -89,18 +98,48 @@ class TestDriversBot:
         assert "## Key Factors" in result
 
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
+    @patch(BASE_RATES_PATCH)
+    @patch(KEY_FACTORS_PATCH)
+    @patch(DRIVERS_PATCH)
+    async def test_run_research_includes_base_rates(
+        self,
+        mock_researcher: AsyncMock,
+        mock_key_factors: AsyncMock,
+        mock_base_rates: AsyncMock,
+        mock_asknews: MagicMock,
+    ) -> None:
+        from code_tests.unit_tests.test_base_rate_researcher import _make_estimate
+
+        mock_researcher.research_drivers = AsyncMock(return_value=[])
+        mock_key_factors.find_and_sort_key_factors = AsyncMock(return_value=[])
+        mock_base_rates.research_base_rates = AsyncMock(
+            return_value=[_make_estimate("Gov shutdowns", 4, 20)]
+        )
+
+        bot = _make_bot()
+        question = ForecastingTestManager.get_fake_binary_question()
+
+        result = await bot.run_research(question)
+
+        assert "## Base Rate Analysis" in result
+        assert "Gov shutdowns" in result
+
+    @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
+    @patch(BASE_RATES_PATCH)
     @patch(KEY_FACTORS_PATCH)
     @patch(DRIVERS_PATCH)
     async def test_run_research_fallback_on_driver_failure(
         self,
         mock_researcher: AsyncMock,
         mock_key_factors: AsyncMock,
+        mock_base_rates: AsyncMock,
         mock_asknews: MagicMock,
     ) -> None:
         mock_researcher.research_drivers = AsyncMock(
             side_effect=RuntimeError("Driver research failed")
         )
         mock_key_factors.find_and_sort_key_factors = AsyncMock(return_value=[])
+        mock_base_rates.research_base_rates = AsyncMock(return_value=[])
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()
@@ -110,12 +149,14 @@ class TestDriversBot:
         assert "## STEEP Driver Analysis" not in result
 
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
+    @patch(BASE_RATES_PATCH)
     @patch(KEY_FACTORS_PATCH)
     @patch(DRIVERS_PATCH)
     async def test_run_research_fallback_on_key_factors_failure(
         self,
         mock_researcher: AsyncMock,
         mock_key_factors: AsyncMock,
+        mock_base_rates: AsyncMock,
         mock_asknews: MagicMock,
     ) -> None:
         from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
@@ -126,6 +167,7 @@ class TestDriversBot:
         mock_key_factors.find_and_sort_key_factors = AsyncMock(
             side_effect=RuntimeError("Key factors failed")
         )
+        mock_base_rates.research_base_rates = AsyncMock(return_value=[])
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()
@@ -135,15 +177,47 @@ class TestDriversBot:
         assert "## STEEP Driver Analysis" in result
         assert "## Key Factors" not in result
 
+    @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
+    @patch(BASE_RATES_PATCH)
+    @patch(KEY_FACTORS_PATCH)
+    @patch(DRIVERS_PATCH)
+    async def test_run_research_fallback_on_base_rates_failure(
+        self,
+        mock_researcher: AsyncMock,
+        mock_key_factors: AsyncMock,
+        mock_base_rates: AsyncMock,
+        mock_asknews: MagicMock,
+    ) -> None:
+        from code_tests.unit_tests.test_drivers_researcher import _make_scored_driver
+
+        mock_researcher.research_drivers = AsyncMock(
+            return_value=[_make_scored_driver()]
+        )
+        mock_key_factors.find_and_sort_key_factors = AsyncMock(return_value=[])
+        mock_base_rates.research_base_rates = AsyncMock(
+            side_effect=RuntimeError("Base rates failed")
+        )
+
+        bot = _make_bot()
+        question = ForecastingTestManager.get_fake_binary_question()
+
+        result = await bot.run_research(question)
+
+        assert "## STEEP Driver Analysis" in result
+        assert "## Base Rate Analysis" not in result
+
+    @patch(BASE_RATES_PATCH)
     @patch(KEY_FACTORS_PATCH)
     @patch(DRIVERS_PATCH)
     async def test_run_research_includes_news(
         self,
         mock_researcher: AsyncMock,
         mock_key_factors: AsyncMock,
+        mock_base_rates: AsyncMock,
     ) -> None:
         mock_researcher.research_drivers = AsyncMock(return_value=[])
         mock_key_factors.find_and_sort_key_factors = AsyncMock(return_value=[])
+        mock_base_rates.research_base_rates = AsyncMock(return_value=[])
 
         mock_asknews_instance = AsyncMock()
         mock_asknews_instance.get_formatted_news_async = AsyncMock(
@@ -161,12 +235,14 @@ class TestDriversBot:
             assert "Latest news content" in result
 
     @patch(ASKNEWS_PATCH, new_callable=lambda: _mock_asknews)
+    @patch(BASE_RATES_PATCH)
     @patch(KEY_FACTORS_PATCH)
     @patch(DRIVERS_PATCH)
-    async def test_run_research_both_streams_fail_still_returns_news(
+    async def test_run_research_all_parallel_streams_fail_still_returns_news(
         self,
         mock_researcher: AsyncMock,
         mock_key_factors: AsyncMock,
+        mock_base_rates: AsyncMock,
         mock_asknews: MagicMock,
     ) -> None:
         mock_researcher.research_drivers = AsyncMock(
@@ -175,13 +251,16 @@ class TestDriversBot:
         mock_key_factors.find_and_sort_key_factors = AsyncMock(
             side_effect=RuntimeError("Key factors failed")
         )
+        mock_base_rates.research_base_rates = AsyncMock(
+            side_effect=RuntimeError("Base rates failed")
+        )
 
         bot = _make_bot()
         question = ForecastingTestManager.get_fake_binary_question()
 
         result = await bot.run_research(question)
 
-        # Should still have AskNews results
         assert "AskNews results" in result
         assert "## STEEP Driver Analysis" not in result
         assert "## Key Factors" not in result
+        assert "## Base Rate Analysis" not in result
