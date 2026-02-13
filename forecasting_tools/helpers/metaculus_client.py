@@ -421,6 +421,24 @@ class MetaculusClient:
         group_question_mode: GroupQuestionMode = "unpack_subquestions",
     ) -> list[MetaculusQuestion]:
         logger.info(f"Retrieving questions from tournament {tournament_id}")
+
+        # DEBUG: Test with minimal params to diagnose 0 questions issue
+        self._sleep_between_requests()
+        debug_params = {"tournaments": [tournament_id], "statuses": ["open"], "limit": 5}
+        debug_resp = requests.get(
+            f"{self.base_url}/posts/",
+            params=debug_params,
+            **self._get_auth_headers(),  # type: ignore
+            timeout=self.timeout,
+        )
+        debug_data = json.loads(debug_resp.content)
+        logger.info(
+            f"DEBUG MINIMAL QUERY: tournament={tournament_id}, "
+            f"status={debug_resp.status_code}, "
+            f"results={len(debug_data.get('results', []))}"
+        )
+        # END DEBUG
+
         api_filter = ApiFilter(
             allowed_tournaments=[tournament_id],
             allowed_statuses=["open"],
