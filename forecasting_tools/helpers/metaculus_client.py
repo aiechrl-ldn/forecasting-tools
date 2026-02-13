@@ -625,10 +625,14 @@ class MetaculusClient:
             or num_requested <= self.MAX_QUESTIONS_FROM_QUESTION_API_PER_REQUEST
         ), "You cannot get more than 100 questions at a time"
         url = f"{self.base_url}/posts/"
+        logger.info(f"DEBUG: GET {url} with params={params}")
+        logger.info(f"DEBUG: Token present: {self.token is not None}, Token prefix: {self.token[:8] if self.token else 'None'}...")
         response = requests.get(url, params=params, **self._get_auth_headers(), timeout=self.timeout)  # type: ignore
+        logger.info(f"DEBUG: Response status={response.status_code}, URL={response.url}")
         raise_for_status_with_additional_info(response)
         data = json.loads(response.content)
         results = data["results"]
+        logger.info(f"DEBUG: API returned {len(results)} raw results")
         supported_posts = [q for q in results if "notebook" not in q]
         removed_posts = [post for post in results if post not in supported_posts]
         if len(removed_posts) > 0:
