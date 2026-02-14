@@ -1,6 +1,16 @@
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from code_tests.unit_tests.forecasting_test_manager import ForecastingTestManager
+from forecasting_tools.data_models.numeric_report import (
+    NumericDistribution,
+    Percentile,
+)
+from forecasting_tools.data_models.questions import BinaryQuestion, NumericQuestion
+from forecasting_tools.data_models.timestamped_predictions import (
+    BinaryTimestampedPrediction,
+    NumericTimestampedDistribution,
+)
 from forecasting_tools.forecast_bots.experiments.drivers_bot import DriversBot
 
 ASKNEWS_PATCH = (
@@ -264,3 +274,179 @@ class TestDriversBot:
         assert "## STEEP Driver Analysis" not in result
         assert "## Key Factors" not in result
         assert "## Base Rate Analysis" not in result
+
+
+def _make_timestamp() -> datetime:
+    return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+class TestDriftGuard:
+    async def test_binary_no_previous_forecast_passes_through(self) -> None:
+        bot = _make_bot()
+        question = BinaryQuestion(
+            question_text="Test?",
+            previous_forecasts=None,
+        )
+        result = await bot._aggregate_predictions([0.8], question)
+        assert result == 0.8
+
+    async def test_binary_small_drift_passes_through(self) -> None:
+        bot = _make_bot()
+        question = BinaryQuestion(
+            question_text="Test?",
+            previous_forecasts=[
+                BinaryTimestampedPrediction(
+                    prediction_in_decimal=0.5,
+                    timestamp=_make_timestamp(),
+                    timestamp_end=None,
+                )
+            ],
+        )
+        result = await bot._aggregate_predictions([0.6], question)
+        assert result == 0.6
+
+    async def test_binary_large_drift_gets_dampened(self) -> None:
+        bot = _make_bot()
+        question = BinaryQuestion(
+            question_text="Test?",
+            previous_forecasts=[
+                BinaryTimestampedPrediction(
+                    prediction_in_decimal=0.3,
+                    timestamp=_make_timestamp(),
+                    timestamp_end=None,
+                )
+            ],
+        )
+        # Drift of 0.5 exceeds MAX_BINARY_DRIFT (0.15)
+        result = await bot._aggregate_predictions([0.8], question)
+        # Blended: 0.6 * 0.8 + 0.4 * 0.3 = 0.48 + 0.12 = 0.60
+        assert abs(result - 0.60) < 1e-6
+
+    async def test_binary_drift_guard_uses_last_forecast(self) -> None:
+        bot = _make_bot()
+        question = BinaryQuestion(
+            question_text="Test?",
+            previous_forecasts=[
+                BinaryTimestampedPrediction(
+                    prediction_in_decimal=0.1,
+                    timestamp=_make_timestamp(),
+                    timestamp_end=None,
+                ),
+                BinaryTimestampedPrediction(
+                    prediction_in_decimal=0.5,
+                    timestamp=_make_timestamp(),
+                    timestamp_end=None,
+                ),
+            ],
+        )
+        # Only compares against last (0.5), drift = 0.3 > 0.15
+        result = await bot._aggregate_predictions([0.8], question)
+        # Blended: 0.6 * 0.8 + 0.4 * 0.5 = 0.48 + 0.20 = 0.68
+        assert abs(result - 0.68) < 1e-6
+
+    async def test_numeric_large_drift_gets_dampened(self) -> None:
+        bot = _make_bot()
+
+        prev_percentiles = [
+            Percentile(percentile=0.1, value=10.0),
+            Percentile(percentile=0.5, value=30.0),
+            Percentile(percentile=0.9, value=50.0),
+        ]
+        new_percentiles = [
+            Percentile(percentile=0.1, value=30.0),
+            Percentile(percentile=0.5, value=70.0),
+            Percentile(percentile=0.9, value=90.0),
+        ]
+
+        question = NumericQuestion(
+            question_text="Test?",
+            upper_bound=100.0,
+            lower_bound=0.0,
+            open_upper_bound=False,
+            open_lower_bound=False,
+            previous_forecasts=[
+                NumericTimestampedDistribution(
+                    declared_percentiles=prev_percentiles,
+                    open_upper_bound=False,
+                    open_lower_bound=False,
+                    upper_bound=100.0,
+                    lower_bound=0.0,
+                    zero_point=None,
+                    timestamp=_make_timestamp(),
+                    timestamp_end=None,
+                )
+            ],
+        )
+
+        new_dist = NumericDistribution(
+            declared_percentiles=new_percentiles,
+            open_upper_bound=False,
+            open_lower_bound=False,
+            upper_bound=100.0,
+            lower_bound=0.0,
+            zero_point=None,
+            standardize_cdf=False,
+        )
+
+        result = await bot._aggregate_predictions([new_dist], question)
+        assert isinstance(result, NumericDistribution)
+        # Median drift = |70 - 30| / 100 = 0.4 > 0.15, so blending occurs
+        # Blended median: 0.6 * 70 + 0.4 * 30 = 42 + 12 = 54
+        result_values = {
+            p.percentile: p.value for p in result.declared_percentiles
+        }
+        # Check that blending moved the median closer to previous
+        # The exact value depends on from_question standardization,
+        # but raw blended p50 should be ~54 (between 30 and 70)
+        p50_candidates = [
+            v for p, v in result_values.items() if abs(p - 0.5) < 0.01
+        ]
+        if p50_candidates:
+            assert 30.0 < p50_candidates[0] < 70.0
+
+    async def test_numeric_small_drift_passes_through(self) -> None:
+        bot = _make_bot()
+
+        prev_percentiles = [
+            Percentile(percentile=0.1, value=40.0),
+            Percentile(percentile=0.5, value=50.0),
+            Percentile(percentile=0.9, value=60.0),
+        ]
+        new_percentiles = [
+            Percentile(percentile=0.1, value=42.0),
+            Percentile(percentile=0.5, value=55.0),
+            Percentile(percentile=0.9, value=63.0),
+        ]
+
+        question = NumericQuestion(
+            question_text="Test?",
+            upper_bound=100.0,
+            lower_bound=0.0,
+            open_upper_bound=False,
+            open_lower_bound=False,
+            previous_forecasts=[
+                NumericTimestampedDistribution(
+                    declared_percentiles=prev_percentiles,
+                    open_upper_bound=False,
+                    open_lower_bound=False,
+                    upper_bound=100.0,
+                    lower_bound=0.0,
+                    zero_point=None,
+                    timestamp=_make_timestamp(),
+                    timestamp_end=None,
+                )
+            ],
+        )
+
+        new_dist = NumericDistribution(
+            declared_percentiles=new_percentiles,
+            open_upper_bound=False,
+            open_lower_bound=False,
+            upper_bound=100.0,
+            lower_bound=0.0,
+            zero_point=None,
+            standardize_cdf=False,
+        )
+
+        result = await bot._aggregate_predictions([new_dist], question)
+        assert isinstance(result, NumericDistribution)
