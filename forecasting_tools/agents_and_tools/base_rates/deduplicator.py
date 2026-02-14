@@ -217,7 +217,16 @@ class Deduplicator:
             logger.warning(
                 f"Could not get embeddings using huggingface. Instead now getting embeddings with OpenAI. Error: {e}"
             )
-            embeddings = cls.__get_embeddings_using_openai(texts_to_get_embeddings_for)
+            try:
+                embeddings = cls.__get_embeddings_using_openai(
+                    texts_to_get_embeddings_for
+                )
+            except Exception as e2:
+                logger.warning(
+                    f"Could not get embeddings using OpenAI either: {e2}. "
+                    "Skipping semantic deduplication."
+                )
+                return False
 
         text_embedding = embeddings[0]
         list_embeddings = embeddings[1:]

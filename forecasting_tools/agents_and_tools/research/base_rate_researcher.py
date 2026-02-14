@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.helpers.metaculus_api import MetaculusQuestion
@@ -31,7 +31,8 @@ class LightweightBaseRateResearcher:
             For each reference class:
             1. Define a clear numerator and denominator
             2. Estimate the count for each based on your knowledge
-            3. Calculate the historical rate
+            3. Calculate the historical rate as a decimal between 0.0 and 1.0
+               (e.g., 40% should be 0.4, NOT 40.0)
             4. Explain why this reference class is relevant
 
             Choose reference classes that:
@@ -68,6 +69,13 @@ class BaseRateEstimate(BaseModel):
     historical_rate: float = Field(ge=0.0, le=1.0)
     time_period: str = Field(description="e.g., '1976-2025'")
     relevance_reasoning: str
+
+    @field_validator("historical_rate", mode="before")
+    @classmethod
+    def normalize_historical_rate(cls, v: float) -> float:
+        if v > 1.0:
+            return v / 100.0
+        return v
 
     @classmethod
     def format_as_markdown(cls, estimates: list[BaseRateEstimate]) -> str:
